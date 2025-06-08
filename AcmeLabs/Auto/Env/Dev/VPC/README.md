@@ -18,7 +18,7 @@ This package provides a set of Python scripts to manage AWS VPC (Virtual Private
 ## Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/carrickcancloud/acmelabs-vpc-management.git
+   git clone https://github.com/carrickcancloud/Python.git
    
    cd acmelabs-vpc-management
    ```
