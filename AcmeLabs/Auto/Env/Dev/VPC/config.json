@@ -1,0 +1,24 @@
+{
+    "TAG_VPC_NAME": "AcmeLabs-Dev",
+    "TAG_RTB": "AcmeLabs-Dev-RouteTable",
+    "TAG_IGW_NAME": "AcmeLabs-Dev-IGW",
+    "TAG_ENV": "Dev",
+    "TAG_SUBNET": "AcmeLabs-Dev-Public-Subnet",
+    "CIDR_BLOCK": "10.0.0.0/16",
+    "CIDR_PUBLIC_SUBNETS": [
+        "10.0.1.0/24",
+        "10.0.2.0/24",
+        "10.0.3.0/24"
+    ],
+    "TAG_SUBNETS": [
+        "AcmeLabs-Dev-Public-Subnet-1",
+        "AcmeLabs-Dev-Public-Subnet-2",
+        "AcmeLabs-Dev-Public-Subnet-3"
+    ],
+    "AVAILABILITY_ZONES": [
+        "us-east-1a",
+        "us-east-1b",
+        "us-east-1c"
+    ],
+    "DEST_CIDR_BLOCK": "0.0.0.0/0"
+}
