@@ -20,7 +20,7 @@ This package provides a set of Python scripts to manage AWS VPC (Virtual Private
    ```bash
    git clone https://github.com/carrickcancloud/Python.git
    
-   cd acmelabs-vpc-management
+   cd ./AcmeLabs/Auto/Env/Dev/VPC/
    ```
 
 2.	Install the required Python packages:
