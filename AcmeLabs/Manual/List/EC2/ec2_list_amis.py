@@ -54,7 +54,7 @@ def list_amis(client: Any) -> List[str]:
                         f"PlatformDetails: {image.get('PlatformDetails', 'N/A')}\n"
                         f"VirtualizationType: {image.get('VirtualizationType', 'N/A')}\n"
                         f"BootMode: {image.get('BootMode', 'N/A')}\n"
-                        f"Platform: {image.get('Platform', 'N/A')}\n"
+                        f"Platform: {image.get('Platform', 'N/A')}"
                     )
                     instance_image_details.append(image_info)  # Append the AMI info to the list
                 except Exception as e:
