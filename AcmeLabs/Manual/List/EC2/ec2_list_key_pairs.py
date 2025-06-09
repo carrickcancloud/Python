@@ -24,15 +24,15 @@ def list_key_pairs(client: boto3.client) -> List[str]:
             response = client.describe_key_pairs(NextToken=next_token) if next_token else client.describe_key_pairs()
 
             # Process each key pair in the response
-            for kp in response['KeyPairs']:
+            for kp in response.get('KeyPairs'):
                 try:
                     # Format key pair information
                     key_pair_info = (
-                        f"KeyName: {kp['KeyName']}\n"
-                        f"KeyPairId: {kp['KeyPairId']}\n"
-                        f"KeyType: {kp['KeyType']}\n"
-                        f"KeyFingerprint: {kp['KeyFingerprint']}\n"
-                        f"CreateTime: {kp['CreateTime']}"
+                        f"KeyName: {kp.get('KeyName', 'N/A')}\n"
+                        f"KeyPairId: {kp.get('KeyPairId', 'N/A')}\n"
+                        f"KeyType: {kp.get('KeyType', 'N/A')}\n"
+                        f"KeyFingerprint: {kp.get('KeyFingerprint', 'N/A')}\n"
+                        f"CreateTime: {kp.get('CreateTime', 'N/A')}\n"
                     )
                     key_pair_details.append(key_pair_info)  # Append to the list
                 except KeyError as e:
