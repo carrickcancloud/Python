@@ -1,6 +1,6 @@
 import boto3
 from botocore.exceptions import ClientError
-from typing import List
+from typing import List, Optional
 
 # Initialize the EC2 client
 ec2 = boto3.client('ec2')
@@ -16,24 +16,18 @@ def list_ec2_instances(client: boto3.client) -> List[str]:
         A list of strings containing details about each EC2 instance.
 
     Raises:
-        Exception: If the API call fails or if the response format is unexpected.
+        ClientError: If the API call fails.
     """
-    instance_details = []  # List to store instance details as strings
-    next_token = None  # Initialize next_token for pagination
+    instance_details: List[str] = []  # List to store instance details as strings
+    next_token: Optional[str] = None  # Initialize next_token for pagination
 
     while True:
         try:
             # Describe EC2 instances with pagination
-            if next_token:
-                response = client.describe_instances(NextToken=next_token)
-            else:
-                response = client.describe_instances()
+            response = client.describe_instances(NextToken=next_token) if next_token else client.describe_instances()
         except ClientError as e:
-            print(f"Client error occurred: {e.response['Error']['Message']}")
-            return []  # Return an empty list on client error
-        except Exception as e:
-            print(f"Error retrieving EC2 instances: {e}")
-            return []  # Return an empty list on other errors
+            print(f"Failed to describe instances: {e}")  # Log the error message
+            return []  # Return an empty list on error
 
         # Iterate through the reservations and instances in the response
         for reservation in response.get('Reservations', []):
@@ -86,11 +80,11 @@ def list_ec2_instances(client: boto3.client) -> List[str]:
                         f"              AttachmentId: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('AttachmentId', 'N/A')}\n"
                         f"              DeviceIndex: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('DeviceIndex', 'N/A')}\n"
                         f"              Status: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('Status', 'N/A')}\n"
-                        f"              DeleteOnTermination: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('DeleteOnTermination', 'N/A')}\n"
+                        f"              DeleteOnTermination: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('DeleteOnTermination', 'N/A')}"
                     )
                     instance_details.append(instance_info)  # Add instance info to the list
                 except KeyError as e:
-                    print(f"Missing data for instance {instance.get('InstanceId', 'unknown')}: {e}")
+                    print(f"Missing data for instance {instance.get('InstanceId', 'unknown')}: {e}")  # Log specific EC2 Instance processing errors
 
         # Check if there is a next token for pagination
         next_token = response.get('NextToken')
@@ -101,5 +95,8 @@ def list_ec2_instances(client: boto3.client) -> List[str]:
 
 if __name__ == "__main__":
     instances = list_ec2_instances(ec2)
-    for instance_detail in instances:
-        print(instance_detail)  # Print each instance detail
+    if instances:  # Check if instances were retrieved successfully
+        for instance_detail in instances:
+            print(instance_detail)  # Print each instance detail
+    else:
+        print("No instances found or an error occurred.")  # Message for no instances found
