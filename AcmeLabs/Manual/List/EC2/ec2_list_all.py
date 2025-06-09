@@ -1,10 +1,11 @@
 import boto3
-from typing import List, Dict, Any
+from botocore.exceptions import ClientError
+from typing import List
 
 # Initialize the EC2 client
 ec2 = boto3.client('ec2')
 
-def list_ec2_instances(client: Any) -> List[str]:
+def list_ec2_instances(client: boto3.client) -> List[str]:
     """
     List EC2 instances with specific details.
 
@@ -17,71 +18,84 @@ def list_ec2_instances(client: Any) -> List[str]:
     Raises:
         Exception: If the API call fails or if the response format is unexpected.
     """
-    try:
-        # Describe EC2 instances with a filter for architecture
-        response = client.describe_instances() # No filter applied, retrieves all instances
-    except Exception as e:
-        print(f"Error retrieving EC2 instances: {e}")
-        return []  # Return an empty list on error
-
     instance_details = []  # List to store instance details as strings
+    next_token = None  # Initialize next_token for pagination
 
-    # Iterate through the reservations and instances in the response
-    for reservation in response.get('Reservations', []):
-        for instance in reservation.get('Instances', []):
-            try:
-                instance_info = (
-                    f"Instance in {instance['Tags'][1]['Value']} found:\n"
-                    f"      Name: {instance['Tags'][0]['Value']}\n"
-                    f"      InstanceId: {instance['InstanceId']}\n"
-                    f"      State: {instance['State']['Name']}\n"
-                    f"      LaunchTime: {instance['LaunchTime'].strftime('%Y-%m-%d %H:%M:%S')}\n"
-                    f"          TimeZone: {instance['LaunchTime'].tzinfo}\n"
-                    f"          ClientTimeZone: {instance['LaunchTime'].astimezone().tzinfo}\n"
-                    f"  HardwareDetails:\n"
-                    f"      Architecture: {instance['Architecture']}\n"
-                    f"      InstanceType: {instance['InstanceType']}\n"
-                    f"      AMI: {instance['ImageId']}\n"
-                    f"      HDD Info:\n"
-                    f"          RootDeviceType: {instance['RootDeviceType']}\n"
-                    f"          RootDeviceName: {instance['RootDeviceName']}\n"
-                    f"          BlockDeviceMappings:\n"
-                    f"              DeviceName: {instance['BlockDeviceMappings'][0]['DeviceName']}\n"
-                    f"              Ebs:\n"
-                    f"                  VolumeId: {instance['BlockDeviceMappings'][0]['Ebs']['VolumeId']}\n"
-                    f"                  Status: {instance['BlockDeviceMappings'][0]['Ebs']['Status']}\n"
-                    f"                  DeleteOnTermination: {instance['BlockDeviceMappings'][0]['Ebs']['DeleteOnTermination']}\n"
-                    f"      CPU Info:\n"
-                    f"              CoreCount: {instance['CpuOptions']['CoreCount']}\n"
-                    f"              ThreadsPerCore: {instance['CpuOptions']['ThreadsPerCore']}\n"
-                    f"  VirtualizationDetails:\n"
-                    f"      VirtualizationType: {instance['VirtualizationType']}\n"
-                    f"      Hypervisor: {instance['Hypervisor']}\n"
-                    f"      PlatformDetails: {instance['PlatformDetails']}\n"
-                    f"      BootMode: {instance.get('BootMode', 'N/A')}\n"
-                    f"  SecurityDetails:\n"
-                    f"      SecurityGroups: {instance['SecurityGroups'][0]['GroupName']}\n"
-                    f"      KeyName: {instance['KeyName']}\n"
-                    f"  NetworkDetails:\n"
-                    f"      VPCId: {instance['VpcId']}\n"
-                    f"      SubnetId: {instance['SubnetId']}\n"
-                    f"      AvailabilityZone: {instance['Placement']['AvailabilityZone']}\n"
-                    f"      PrivateIpAddress: {instance['PrivateIpAddress']}\n"
-                    f"      PublicIpAddress: {instance.get('PublicIpAddress', 'N/A')}\n"
-                    f"      InterfaceDetails:\n"
-                    f"          InterfaceId: {instance['NetworkInterfaces'][0]['NetworkInterfaceId']}\n"
-                    f"          InterfaceType: {instance['NetworkInterfaces'][0]['InterfaceType']}\n"
-                    f"          MacAddress: {instance['NetworkInterfaces'][0]['MacAddress']}\n"
-                    f"          Status: {instance['NetworkInterfaces'][0]['Status']}\n"
-                    f"          Attachment:\n"
-                    f"              AttachmentId: {instance['NetworkInterfaces'][0]['Attachment']['AttachmentId']}\n"
-                    f"              DeviceIndex: {instance['NetworkInterfaces'][0]['Attachment']['DeviceIndex']}\n"
-                    f"              Status: {instance['NetworkInterfaces'][0]['Attachment']['Status']}\n"
-                    f"              DeleteOnTermination: {instance['NetworkInterfaces'][0]['Attachment']['DeleteOnTermination']}\n"
-                )
-                instance_details.append(instance_info)  # Add instance info to the list
-            except KeyError as e:
-                print(f"Missing data for instance {instance.get('InstanceId', 'unknown')}: {e}")
+    while True:
+        try:
+            # Describe EC2 instances with pagination
+            if next_token:
+                response = client.describe_instances(NextToken=next_token)
+            else:
+                response = client.describe_instances()
+        except ClientError as e:
+            print(f"Client error occurred: {e.response['Error']['Message']}")
+            return []  # Return an empty list on client error
+        except Exception as e:
+            print(f"Error retrieving EC2 instances: {e}")
+            return []  # Return an empty list on other errors
+
+        # Iterate through the reservations and instances in the response
+        for reservation in response.get('Reservations', []):
+            for instance in reservation.get('Instances', []):
+                try:
+                    instance_info = (
+                        f"Instance in {instance.get('Tags', [{}])[1].get('Value', 'N/A')} found:\n"
+                        f"      Name: {instance.get('Tags', [{}])[0].get('Value', 'N/A')}\n"
+                        f"      InstanceId: {instance.get('InstanceId', 'N/A')}\n"
+                        f"      State: {instance.get('State', {}).get('Name', 'N/A')}\n"
+                        f"      LaunchTime: {instance.get('LaunchTime', 'N/A')}\n"
+                        f"          TimeZone: {instance.get('LaunchTime', {}).tzinfo if instance.get('LaunchTime') else 'N/A'}\n"
+                        f"          ClientTimeZone: {instance.get('LaunchTime', {}).astimezone().tzinfo if instance.get('LaunchTime') else 'N/A'}\n"
+                        f"  HardwareDetails:\n"
+                        f"      Architecture: {instance.get('Architecture', 'N/A')}\n"
+                        f"      InstanceType: {instance.get('InstanceType', 'N/A')}\n"
+                        f"      AMI: {instance.get('ImageId', 'N/A')}\n"
+                        f"      HDD Info:\n"
+                        f"          RootDeviceType: {instance.get('RootDeviceType', 'N/A')}\n"
+                        f"          RootDeviceName: {instance.get('RootDeviceName', 'N/A')}\n"
+                        f"          BlockDeviceMappings:\n"
+                        f"              DeviceName: {instance.get('BlockDeviceMappings', [{}])[0].get('DeviceName', 'N/A')}\n"
+                        f"              Ebs:\n"
+                        f"                  VolumeId: {instance.get('BlockDeviceMappings', [{}])[0].get('Ebs', {}).get('VolumeId', 'N/A')}\n"
+                        f"                  Status: {instance.get('BlockDeviceMappings', [{}])[0].get('Ebs', {}).get('Status', 'N/A')}\n"
+                        f"                  DeleteOnTermination: {instance.get('BlockDeviceMappings', [{}])[0].get('Ebs', {}).get('DeleteOnTermination', 'N/A')}\n"
+                        f"      CPU Info:\n"
+                        f"              CoreCount: {instance.get('CpuOptions', {}).get('CoreCount', 'N/A')}\n"
+                        f"              ThreadsPerCore: {instance.get('CpuOptions', {}).get('ThreadsPerCore', 'N/A')}\n"
+                        f"  VirtualizationDetails:\n"
+                        f"      VirtualizationType: {instance.get('VirtualizationType', 'N/A')}\n"
+                        f"      Hypervisor: {instance.get('Hypervisor', 'N/A')}\n"
+                        f"      PlatformDetails: {instance.get('PlatformDetails', 'N/A')}\n"
+                        f"      BootMode: {instance.get('BootMode', 'N/A')}\n"
+                        f"  SecurityDetails:\n"
+                        f"      SecurityGroups: {instance.get('SecurityGroups', [{}])[0].get('GroupName', 'N/A')}\n"
+                        f"      KeyName: {instance.get('KeyName', 'N/A')}\n"
+                        f"  NetworkDetails:\n"
+                        f"      VPCId: {instance.get('VpcId', 'N/A')}\n"
+                        f"      SubnetId: {instance.get('SubnetId', 'N/A')}\n"
+                        f"      AvailabilityZone: {instance.get('Placement', {}).get('AvailabilityZone', 'N/A')}\n"
+                        f"      PrivateIpAddress: {instance.get('PrivateIpAddress', 'N/A')}\n"
+                        f"      PublicIpAddress: {instance.get('PublicIpAddress', 'N/A')}\n"
+                        f"      InterfaceDetails:\n"
+                        f"          InterfaceId: {instance.get('NetworkInterfaces', [{}])[0].get('NetworkInterfaceId', 'N/A')}\n"
+                        f"          InterfaceType: {instance.get('NetworkInterfaces', [{}])[0].get('InterfaceType', 'N/A')}\n"
+                        f"          MacAddress: {instance.get('NetworkInterfaces', [{}])[0].get('MacAddress', 'N/A')}\n"
+                        f"          Status: {instance.get('NetworkInterfaces', [{}])[0].get('Status', 'N/A')}\n"
+                        f"          Attachment:\n"
+                        f"              AttachmentId: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('AttachmentId', 'N/A')}\n"
+                        f"              DeviceIndex: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('DeviceIndex', 'N/A')}\n"
+                        f"              Status: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('Status', 'N/A')}\n"
+                        f"              DeleteOnTermination: {instance.get('NetworkInterfaces', [{}])[0].get('Attachment', {}).get('DeleteOnTermination', 'N/A')}\n"
+                    )
+                    instance_details.append(instance_info)  # Add instance info to the list
+                except KeyError as e:
+                    print(f"Missing data for instance {instance.get('InstanceId', 'unknown')}: {e}")
+
+        # Check if there is a next token for pagination
+        next_token = response.get('NextToken')
+        if not next_token:
+            break  # Exit the loop if there are no more pages
 
     return instance_details  # Return the list of instance details
 
