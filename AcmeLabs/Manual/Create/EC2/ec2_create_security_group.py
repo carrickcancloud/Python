@@ -7,7 +7,16 @@ import re
 ec2 = boto3.client('ec2')
 
 def security_group_exists(client: boto3.client, sge_group_name: str, sge_vpc_id: str) -> bool:
-    """Check if a security group exists in the specified VPC."""
+    """Check if a security group exists in the specified VPC.
+
+    Args:
+        client: The Boto3 EC2 client.
+        sge_group_name: The name of the security group.
+        sge_vpc_id: The VPC ID where the security group is located.
+
+    Returns:
+        True if the security group exists, False otherwise.
+    """
     try:
         sge_response = client.describe_security_groups(
             Filters=[
@@ -15,14 +24,23 @@ def security_group_exists(client: boto3.client, sge_group_name: str, sge_vpc_id:
                 {'Name': 'vpc-id', 'Values': [sge_vpc_id]}
             ]
         )
-        return len(sge_response['SecurityGroups']) > 0  # Returns True if at least one security group is found
+        return len(sge_response['SecurityGroups']) > 0
     except ClientError as e:
-        print(f"An error occurred while checking for security group existence: {e}")
-        return False
+        return False  # Return False on error for existence check
 
 def create_security_group(client: boto3.client, csg_group_name: str, csg_description: str, csg_vpc_id: str) -> Union[
     Dict[str, Any], str]:
-    """Create a security group in the specified VPC."""
+    """Create a security group in the specified VPC.
+
+    Args:
+        client: The Boto3 EC2 client.
+        csg_group_name: The name of the security group.
+        csg_description: Description of the security group.
+        csg_vpc_id: The VPC ID where the security group will be created.
+
+    Returns:
+        The response from the create security group API or an error message.
+    """
     try:
         csg_response = client.create_security_group(
             GroupName=csg_group_name,
@@ -34,7 +52,16 @@ def create_security_group(client: boto3.client, csg_group_name: str, csg_descrip
         return f"An error occurred while creating security group: {e}"
 
 def tag_security_group(client: boto3.client, tsg_group_id: str, tsg_tag_value: str) -> str:
-    """Tag a security group with a specified name."""
+    """Tag a security group with a specified name.
+
+    Args:
+        client: The Boto3 EC2 client.
+        tsg_group_id: The ID of the security group.
+        tsg_tag_value: The value for the tag.
+
+    Returns:
+        Success or error message.
+    """
     try:
         tsg_response = client.create_tags(
             Resources=[tsg_group_id],
@@ -47,16 +74,38 @@ def tag_security_group(client: boto3.client, tsg_group_id: str, tsg_tag_value: s
     except ClientError as e:
         return f"An error occurred while tagging security group: {e}"
 
-def is_valid_cidr(ivc_cidr: str) -> bool:
-    """Check if the input is a valid CIDR block."""
-    return re.match(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$', ivc_cidr) is not None
+def cr_is_valid_cidr(civc_cidr: str) -> bool:
+    """Check if the input is a valid CIDR block.
 
-def is_valid_security_group_id(ivsgi_sg_id: str) -> bool:
-    """Check if the input is a valid security group ID format."""
-    return re.match(r'^sg-[0-9a-f]{8,17}$', ivsgi_sg_id) is not None  # Example format check
+    Args:
+        civc_cidr: The CIDR block to validate.
+
+    Returns:
+        True if valid, False otherwise.
+    """
+    return re.match(r'^(?:[0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$', civc_cidr) is not None
+
+def is_valid_security_group_id(ivsgisg_id: str) -> bool:
+    """Check if the input is a valid security group ID format.
+
+    Args:
+        ivsgisg_id: The security group ID to validate.
+
+    Returns:
+        True if valid, False otherwise.
+    """
+    return re.match(r'^sg-[0-9a-f]{8,17}$', ivsgisg_id) is not None
 
 def prompt_with_retries(pwr_prompt: str, pwr_max_retries: int = 3) -> str:
-    """Prompt the user with a message and allow a maximum number of retries."""
+    """Prompt the user with a message and allow a maximum number of retries.
+
+    Args:
+        pwr_prompt: The message to display to the user.
+        pwr_max_retries: The maximum number of attempts.
+
+    Returns:
+        The user input or 'no' if maximum retries reached.
+    """
     pwr_retries = 0
     while pwr_retries < pwr_max_retries:
         pwr_response = input(pwr_prompt)
@@ -67,144 +116,98 @@ def prompt_with_retries(pwr_prompt: str, pwr_max_retries: int = 3) -> str:
             print(f"No input provided. You have {pwr_max_retries - pwr_retries} retry(s) left.")
     return "no"  # Return 'no' if maximum retries reached
 
-def create_ingress_rule(client: boto3.client, cir_group_id: str, cir_protocol: str, cir_port: int,
-                        cir_current_rule_count: int) -> Union[List[Dict[str, Any]], str]:
-    """Create an ingress rule for a security group."""
+def create_rule(client: boto3.client, cr_group_id: str, cr_protocol: str, cr_port: int,
+                cr_current_rule_count: int, cr_rule_type: str) -> Union[List[Dict[str, Any]], str]:
+    """Create a rule (ingress or egress) for a security group.
+
+    Args:
+        client: The Boto3 EC2 client.
+        cr_group_id: The ID of the security group.
+        cr_protocol: The protocol (tcp or udp).
+        cr_port: The port number.
+        cr_current_rule_count: The current number of rules in the group.
+        cr_rule_type: The type of rule ('ingress' or 'egress').
+
+    Returns:
+        The details of the created rules or an error message.
+    """
     try:
-        cir_ip_permissions = []
-        cir_sources = []
+        cr_ip_permissions = []
+        cr_sources = []
 
         # Inform user about the limit
-        cir_max_rules = 60
-        if cir_current_rule_count >= cir_max_rules:
-            return "Maximum number of ingress rules reached. No more rules can be added."
+        cr_max_rules = 60
+        if cr_current_rule_count >= cr_max_rules:
+            return f"Maximum number of {cr_rule_type} rules reached. No more rules can be added."
 
         print("You can specify multiple CIDR blocks, but each rule can only accept one CIDR block or one Security Group ID.")
 
         while True:
-            cir_source_input = prompt_with_retries('Enter CIDR block or Security Group ID (leave blank to finish): ')
-            if cir_source_input == "no":
+            cr_source_input = prompt_with_retries('Enter CIDR block or Security Group ID (leave blank to finish): ')
+            if cr_source_input == "no":
                 print("Maximum retries reached. Exiting the script.")
                 exit()  # Exit if maximum retries reached
 
-            if is_valid_cidr(cir_source_input):
-                cir_sources.append(cir_source_input)
-            elif is_valid_security_group_id(cir_source_input):
-                cir_sources.append({'GroupId': cir_source_input})
+            if cr_is_valid_cidr(cr_source_input):
+                cr_sources.append(cr_source_input)
+            elif is_valid_security_group_id(cr_source_input):
+                cr_sources.append({'GroupId': cr_source_input})
             else:
                 print("Invalid input. Please enter a valid CIDR block or Security Group ID.")
 
-            if len(cir_sources) > 0:  # If at least one source has been added, break the loop
+            if len(cr_sources) > 0:  # If at least one source has been added, break the loop
                 break
 
         # Create permissions based on the sources
-        for cir_source in cir_sources:
-            if isinstance(cir_source, str):  # CIDR block
-                cir_ip_permissions.append({
-                    'IpProtocol': cir_protocol,
-                    'FromPort': cir_port,
-                    'ToPort': cir_port,
-                    'IpRanges': [{'CidrIp': cir_source}],
+        for cr_source in cr_sources:
+            if isinstance(cr_source, str):  # CIDR block
+                cr_ip_permissions.append({
+                    'IpProtocol': cr_protocol,
+                    'FromPort': cr_port,
+                    'ToPort': cr_port,
+                    'IpRanges': [{'CidrIp': cr_source}],
                 })
-            elif isinstance(cir_source, dict) and 'GroupId' in cir_source:  # Security group reference
-                cir_ip_permissions.append({
-                    'IpProtocol': cir_protocol,
-                    'FromPort': cir_port,
-                    'ToPort': cir_port,
-                    'UserIdGroupPairs': [{'GroupId': cir_source['GroupId']}],
+            elif isinstance(cr_source, dict) and 'GroupId' in cr_source:  # Security group reference
+                cr_ip_permissions.append({
+                    'IpProtocol': cr_protocol,
+                    'FromPort': cr_port,
+                    'ToPort': cr_port,
+                    'UserIdGroupPairs': [{'GroupId': cr_source['GroupId']}],
                 })
 
-        cir_response = client.authorize_security_group_ingress(
-            GroupId=cir_group_id,
-            IpPermissions=cir_ip_permissions
-        )
+        if cr_rule_type == 'ingress':
+            cr_response = client.authorize_security_group_ingress(
+                GroupId=cr_group_id,
+                IpPermissions=cr_ip_permissions
+            )
+        else:  # egress
+            cr_response = client.authorize_security_group_egress(
+                GroupId=cr_group_id,
+                IpPermissions=cr_ip_permissions
+            )
 
         # Extracting details from the response
-        cir_ingress_details = []
-        for cir_rule in cir_response['SecurityGroupRules']:
-            cir_ingress_details.append({
-                'GroupId': cir_rule['GroupId'],
-                'SecurityGroupRuleId': cir_rule['SecurityGroupRuleId'],
-                'IpProtocol': cir_rule['IpProtocol'],
-                'FromPort': cir_rule['FromPort'],
-                'ToPort': cir_rule['ToPort'],
-                'CidrIpv4': cir_rule.get('IpRanges', [{}])[0].get('CidrIp', 'N/A')
+        cr_rule_details = []
+        for cr_rule in cr_response['SecurityGroupRules']:
+            cr_rule_details.append({
+                'GroupId': cr_rule['GroupId'],
+                'SecurityGroupRuleId': cr_rule['SecurityGroupRuleId'],
+                'IpProtocol': cr_rule['IpProtocol'],
+                'FromPort': cr_rule['FromPort'],
+                'ToPort': cr_rule['ToPort'],
+                'CidrIpv4': cr_rule.get('IpRanges', [{}])[0].get('CidrIp', 'N/A')
             })
 
-        return cir_ingress_details
+        return cr_rule_details
     except ClientError as e:
-        return f"An error occurred while adding ingress rule: {e}"
-
-def create_egress_rule(client: boto3.client, cer_group_id: str, cer_protocol: str, cer_port: int,
-                       cer_current_rule_count: int) -> Union[List[Dict[str, Any]], str]:
-    """Create an egress rule for a security group."""
-    try:
-        cer_ip_permissions = []
-        cer_sources = []
-
-        # Inform user about the limit
-        cer_max_rules = 60
-        if cer_current_rule_count >= cer_max_rules:
-            return "Maximum number of egress rules reached. No more rules can be added."
-
-        print("You can specify multiple CIDR blocks, but each rule can only accept one CIDR block or one Security Group ID.")
-
-        while True:
-            cer_source_input = prompt_with_retries('Enter CIDR block or Security Group ID (leave blank to finish): ')
-            if cer_source_input == "no":
-                print("Maximum retries reached. Exiting the script.")
-                exit()  # Exit if maximum retries reached
-
-            if is_valid_cidr(cer_source_input):
-                cer_sources.append(cer_source_input)
-            elif is_valid_security_group_id(cer_source_input):
-                cer_sources.append({'GroupId': cer_source_input})
-            else:
-                print("Invalid input. Please enter a valid CIDR block or Security Group ID.")
-
-            if len(cer_sources) > 0:  # If at least one source has been added, break the loop
-                break
-
-        # Create permissions based on the sources
-        for cer_source in cer_sources:
-            if isinstance(cer_source, str):  # CIDR block
-                cer_ip_permissions.append({
-                    'IpProtocol': cer_protocol,
-                    'FromPort': cer_port,
-                    'ToPort': cer_port,
-                    'IpRanges': [{'CidrIp': cer_source}],
-                })
-            elif isinstance(cer_source, dict) and 'GroupId' in cer_source:  # Security group reference
-                cer_ip_permissions.append({
-                    'IpProtocol': cer_protocol,
-                    'FromPort': cer_port,
-                    'ToPort': cer_port,
-                    'UserIdGroupPairs': [{'GroupId': cer_source['GroupId']}],
-                })
-
-        cer_response = client.authorize_security_group_egress(
-            GroupId=cer_group_id,
-            IpPermissions=cer_ip_permissions
-        )
-
-        # Extracting details from the response
-        cer_egress_details = []
-        for cer_rule in cer_response['SecurityGroupRules']:
-            cer_egress_details.append({
-                'GroupId': cer_rule['GroupId'],
-                'SecurityGroupRuleId': cer_rule['SecurityGroupRuleId'],
-                'IpProtocol': cer_rule['IpProtocol'],
-                'FromPort': cer_rule['FromPort'],
-                'ToPort': cer_rule['ToPort'],
-                'CidrIpv4': cer_rule.get('IpRanges', [{}])[0].get('CidrIp', 'N/A')
-            })
-
-        return cer_egress_details
-    except ClientError as e:
-        return f"An error occurred while adding egress rule: {e}"
+        return f"An error occurred while adding {cr_rule_type} rule: {e}"
 
 def print_rule_details(prd_rules: Union[List[Dict[str, Any]], str]) -> None:
-    """Print the details of the ingress or egress rules."""
+    """Print the details of the ingress or egress rules.
+
+    Args:
+        prd_rules: The rules to print or an error message.
+    """
     if isinstance(prd_rules, str):
         print(prd_rules)  # Print error message
     elif isinstance(prd_rules, list):
@@ -223,7 +226,11 @@ def print_rule_details(prd_rules: Union[List[Dict[str, Any]], str]) -> None:
         print("Unexpected input type. Expected a list or a string.")
 
 def prompt_protocol() -> Optional[str]:
-    """Prompt for a valid protocol (tcp or udp)."""
+    """Prompt for a valid protocol (tcp or udp).
+
+    Returns:
+        The protocol if valid, None if maximum retries reached.
+    """
     while True:
         pp_protocol = prompt_with_retries('Enter the protocol (tcp or udp): ')
         if pp_protocol == 'no':  # Check if maximum retries reached
@@ -234,12 +241,19 @@ def prompt_protocol() -> Optional[str]:
             print("Invalid protocol. Please enter 'tcp' or 'udp'.")
 
 def prompt_port() -> Optional[int]:
-    """Prompt for a valid port number."""
+    """Prompt for a valid port number.
+
+    Returns:
+        The port number if valid, None if maximum retries reached.
+    """
     while True:
+        pp_port = prompt_with_retries('Enter the port number (0-65535): ')
+        if pp_port == 'no':  # Check if maximum retries reached
+            return None  # Indicate failure to the caller
         try:
-            pp_port = int(prompt_with_retries('Enter the port number (0-65535): '))
+            pp_port = int(pp_port)  # Attempt to convert to integer
             if 0 <= pp_port <= 65535:
-                return pp_port
+                return pp_port  # Valid port number
             else:
                 print("Port number must be between 0 and 65535.")
         except ValueError:
@@ -280,26 +294,28 @@ if __name__ == '__main__':
 
             # Initialize rule counters
             ingress_rule_count = 0
-            egress_rule_count = 0
 
-            # Loop to create ingress rules
+            # Prompt to create ingress rules
             while True:
                 create_ingress = prompt_with_retries("Do you want to create an ingress rule? (yes/no): ")
                 if create_ingress == 'no':
-                    break
+                    break  # Exit the loop if the user doesn't want to create ingress rules
                 elif create_ingress == 'yes':
                     protocol = prompt_protocol()
                     if protocol is None:  # Check if the user has exhausted retries
                         print("Maximum retries reached for protocol input. Exiting the script.")
                         exit()  # Exit if maximum retries reached
+
                     port = prompt_port()
                     if port is None:  # Check if the user has exhausted retries
                         print("Maximum retries reached for port input. Exiting the script.")
                         exit()  # Exit if maximum retries reached
-                    ingress_response = create_ingress_rule(ec2, response['GroupId'], protocol, port, ingress_rule_count)
-                    if isinstance(ingress_response, str):
-                        print(ingress_response)  # Print error message
-                    else:
+
+                    ingress_response = create_rule(ec2, response['GroupId'], protocol, port, ingress_rule_count,
+                                                   'ingress')
+                    print_rule_details(ingress_response)  # Print the result
+
+                    if isinstance(ingress_response, list):
                         ingress_rule_count += len(ingress_response)  # Increment the count of ingress rules added
                         print(f"Total ingress rules now: {ingress_rule_count}")
 
@@ -307,12 +323,13 @@ if __name__ == '__main__':
                     if another_ingress != 'yes':
                         break  # Exit the loop if the user doesn't want to create another rule
 
-            # Loop to create egress rules
-            while True:
-                create_egress = prompt_with_retries("Do you want to create an egress rule? (yes/no): ")
-                if create_egress == 'no':
-                    break
-                elif create_egress == 'yes':
+            # After exiting the ingress loop, prompt for egress rules
+            create_egress = prompt_with_retries("Do you want to create an egress rule? (yes/no): ")
+            if create_egress == 'no':
+                exit()  # Exit if maximum retries reached or user chooses not to create egress rules
+            elif create_egress == 'yes':
+                egress_rule_count = 0
+                while True:
                     protocol = prompt_protocol()
                     if protocol is None:  # Check if the user has exhausted retries
                         print("Maximum retries reached for protocol input. Exiting the script.")
@@ -321,10 +338,9 @@ if __name__ == '__main__':
                     if port is None:  # Check if the user has exhausted retries
                         print("Maximum retries reached for port input. Exiting the script.")
                         exit()  # Exit if maximum retries reached
-                    egress_response = create_egress_rule(ec2, response['GroupId'], protocol, port, egress_rule_count)
-                    if isinstance(egress_response, str):
-                        print(egress_response)  # Print error message
-                    else:
+                    egress_response = create_rule(ec2, response['GroupId'], protocol, port, egress_rule_count, 'egress')
+                    print_rule_details(egress_response)  # Print the result
+                    if isinstance(egress_response, list):
                         egress_rule_count += len(egress_response)  # Increment the count of egress rules added
                         print(f"Total egress rules now: {egress_rule_count}")
 
