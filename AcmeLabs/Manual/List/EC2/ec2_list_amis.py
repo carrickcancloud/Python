@@ -24,8 +24,8 @@ ARCHITECTURES: List[str] = [
     'arm64'
 ]
 
-# List of OS flavors
-OS_FLAVORS: List[str] = [
+# List of OS Distributions
+OS_DISTROS: List[str] = [
     'Ubuntu',
     'Amazon Linux'
 ]
@@ -146,14 +146,14 @@ def get_latest_amazon_linux_amis(glala_architecture: str) -> Tuple[Optional[Dict
         print(f"ClientError: {e.response['Error']['Message']}")
         return None, None
 
-def list_latest_ami_details(llad_architecture: str, os_flavor: str) -> None:
-    """List the details of the latest AMIs based on the selected OS flavor.
+def list_latest_ami_details(llad_architecture: str, llad_os_distro: str) -> None:
+    """List the details of the latest AMIs based on the selected OS distribution.
 
     Args:
         llad_architecture (str): The architecture to filter AMIs.
-        os_flavor (str): The selected OS flavor (Ubuntu or Amazon Linux).
+        llad_os_distro (str): The selected OS distribution (Ubuntu or Amazon Linux).
     """
-    if os_flavor == 'Ubuntu':
+    if llad_os_distro == 'Ubuntu':
         # Fetch the latest Ubuntu AMI
         llad_ubuntu_ami_info = get_latest_ubuntu_ami(llad_architecture)
         if llad_ubuntu_ami_info:
@@ -170,7 +170,7 @@ def list_latest_ami_details(llad_architecture: str, os_flavor: str) -> None:
         else:
             print("No Ubuntu AMIs found.")
 
-    elif os_flavor == 'Amazon Linux':
+    elif llad_os_distro == 'Amazon Linux':
         # Fetch the latest Amazon Linux AMIs
         llad_amazon_linux2_info, llad_amazon_linux2023_info = get_latest_amazon_linux_amis(llad_architecture)
 
@@ -203,7 +203,7 @@ def list_latest_ami_details(llad_architecture: str, os_flavor: str) -> None:
             print("No Amazon Linux 2023 AMIs found.")
 
 if __name__ == "__main__":
-    # Select region, architecture, and OS flavor from user
+    # Select region, architecture, and OS distro from user
     region_name: Optional[str] = select_option(REGIONS, "Please select an AWS region:")
     if region_name is None:
         print("No region selected. Exiting.")
@@ -214,13 +214,13 @@ if __name__ == "__main__":
         print("No architecture selected. Exiting.")
         exit()
 
-    os_flavor: Optional[str] = select_option(OS_FLAVORS, "Please select an OS flavor:")
-    if os_flavor is None:
-        print("No OS flavor selected. Exiting.")
+    os_distro: Optional[str] = select_option(OS_DISTROS, "Please select an OS distro:")
+    if os_distro is None:
+        print("No OS distro selected. Exiting.")
         exit()
 
     # Initialize the EC2 client with the user-specified region
     ec2 = boto3.client('ec2', region_name=region_name)
 
-    # Call the unified function with the selected architecture and OS flavor
-    list_latest_ami_details(architecture, os_flavor)
+    # Call the unified function with the selected architecture and OS distro
+    list_latest_ami_details(architecture, os_distro)
