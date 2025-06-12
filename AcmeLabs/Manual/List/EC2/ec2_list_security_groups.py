@@ -21,7 +21,8 @@ def list_security_groups(client: Any) -> List[str]:
     while True:
         try:
             # Fetch security groups with pagination support
-            response = client.describe_security_groups(NextToken=next_token) if next_token else client.describe_security_groups()
+            response = client.describe_security_groups(
+                NextToken=next_token) if next_token else client.describe_security_groups()
 
             for sg in response.get('SecurityGroups', []):
                 try:
@@ -94,7 +95,60 @@ def list_security_groups(client: Any) -> List[str]:
 
     return security_group_details
 
+def prompt_with_retries(pwr_prompt: str, pwr_max_retries: int = 3) -> str:
+    """
+    Prompt the user with a message and allow a maximum number of retries.
+
+    Args:
+        pwr_prompt: The message to display to the user.
+        pwr_max_retries: The maximum number of attempts.
+
+    Returns:
+        The user input or 'no' if maximum retries reached.
+    """
+    pwr_retries = 0
+    while pwr_retries < pwr_max_retries:
+        pwr_response = input(pwr_prompt)  # Get user input
+        if pwr_response:
+            return pwr_response  # Return valid input
+        else:
+            pwr_retries += 1
+            print(f"No input provided. You have {pwr_max_retries - pwr_retries} retry(s) left.")
+    return "no"  # Return 'no' if maximum retries reached
+
+def search_security_groups(ssg_security_groups: List[str], ssg_search_term: str) -> List[str]:
+    """
+    Search for security groups that match the search term, allowing for wildcard searches.
+
+    Args:
+        ssg_security_groups (List[str]): The list of security group details.
+        ssg_search_term (str): The search term to match against security group names.
+
+    Returns:
+        List[str]: A list of matching security group details.
+    """
+    ssg_search_term = ssg_search_term.lower().replace('*', '')  # Remove wildcards for matching
+    ssg_matched_groups = []
+
+    for ssg_group in ssg_security_groups:
+        if ssg_search_term in ssg_group.lower():
+            ssg_matched_groups.append(ssg_group)
+
+    return ssg_matched_groups
+
 if __name__ == '__main__':
     security_groups = list_security_groups(ec2)
-    for security_group in security_groups:
-        print(security_group)
+
+    # Prompt user for security group name to search by
+    search_input = prompt_with_retries("Enter security group name to search (use '*' as wildcard).: ")
+
+    if search_input.lower() != "no":
+        matched_security_groups = search_security_groups(security_groups, search_input)
+        if matched_security_groups:
+            for security_group in matched_security_groups:
+                print(security_group)
+            print("-" * 40)  # Final separator line after the last group
+        else:
+            print("No matching security groups found.")
+    else:
+        print("Search skipped.")
