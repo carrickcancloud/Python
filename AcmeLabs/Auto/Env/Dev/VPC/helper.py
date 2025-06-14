@@ -261,6 +261,31 @@ def create_vpc(client: boto3.client, i_cidr_block: str, i_tag_name: str, i_tag_e
     except ClientError as e:
         return ("", f"Error creating VPC: {e}")
 
+def enable_dns_vpc(client: boto3.client, u_vpc_id: str) -> None:
+    """
+    Enables DNS support and hostname lookups for the specified VPC.
+
+    Parameters:
+    client (boto3.client): The EC2 client used to interact with AWS.
+    vpc_id (str): The ID of the VPC to modify.
+
+    Returns:
+    None
+    """
+    # Step 1: Enable DNS support
+    client.modify_vpc_attribute(
+        VpcId=u_vpc_id,
+        EnableDnsSupport={'Value': True}
+    )
+    print(f'DNS support enabled for VPC ID: {u_vpc_id}')
+
+    # Step 2: Enable DNS hostname lookups
+    client.modify_vpc_attribute(
+        VpcId=u_vpc_id,
+        EnableDnsHostnames={'Value': True}
+    )
+    print(f'DNS hostname lookups enabled for VPC ID: {u_vpc_id}')
+
 def create_subnet(client: boto3.client, j_cidr_block: str, j_azs: str, j_tag_name: str, j_tag_env: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Create a subnet if it does not already exist.

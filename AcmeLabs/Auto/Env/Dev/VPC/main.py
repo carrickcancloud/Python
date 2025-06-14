@@ -3,7 +3,7 @@ from botocore.exceptions import ClientError
 from helper import (
     vpc_exists, route_table_exists, internet_gateway_exists,
     get_vpc_id, get_route_table_id, get_internet_gateway_id, get_subnet_info,
-    create_vpc, create_subnet, associate_route_table,
+    create_vpc, enable_dns_vpc, create_subnet, associate_route_table,
     create_internet_gateway, attach_internet_gateway, create_route,
     delete_route, detach_internet_gateway, delete_internet_gateway,
     disassociate_subnets_from_route_table, delete_route_table, delete_vpc
@@ -37,6 +37,9 @@ def create_vpc_operation() -> None:
         else:
             # Print details of the newly created VPC
             print(f"VPC Details:\n  VPC ID: {vpc_id}\n  Name: {config['TAG_VPC_NAME']}")
+
+        # Enable DNS support and hostname lookups for the created VPC
+        enable_dns_vpc(ec2, vpc_id)
 
 def create_subnet_operation() -> None:
     """Creates subnets based on the configuration."""
