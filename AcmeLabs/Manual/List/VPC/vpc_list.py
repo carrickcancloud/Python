@@ -1,67 +1,59 @@
 import boto3
+from botocore.exceptions import ClientError
 from typing import List, Dict, Any, Optional
 
-def get_vpc_info(client: boto3.client, filters: List[Dict[str, Any]] = []) -> Optional[List[Dict[str, Any]]]:
+# Initialize the EC2 client
+ec2 = boto3.client('ec2')
+
+def get_vpc(client: boto3.client, gv_filters: List[Dict[str, Any]] = []) -> Optional[List[Dict[str, Any]]]:
     """
-    Retrieve VPC information from AWS EC2.
+    Retrieve VPC information and names from AWS EC2.
 
     Args:
         client (boto3.client): The EC2 client.
-        filters (List[Dict[str, Any]], optional): Filters to apply to the VPC query. Defaults to an empty list.
+        gv_filters (List[Dict[str, Any]], optional): Filters to apply to the VPC query. Defaults to an empty list.
 
     Returns:
-        Optional[List[Dict[str, Any]]]: A list of VPC information dictionaries or None if an error occurs.
+        Optional[List[Dict[str, Any]]]: A list of dictionaries containing VPC information and names, or None if an error occurs.
     """
     try:
-        response = client.describe_vpcs(Filters=filters)
-        vpc_info = []
-        for vpc in response['Vpcs']:
-            vpc_details = {
-                'VpcId': vpc['VpcId'],
-                'CidrBlock': vpc['CidrBlock'],
-                'IsDefault': vpc['IsDefault']
+        # Attempt to describe VPCs using the provided filters
+        gv_response = client.describe_vpcs(Filters=gv_filters)
+        gv_vpc_info = []
+
+        # Iterate through each VPC in the response
+        for gv_vpc in gv_response['Vpcs']:
+            gv_vpc_details = {
+                'VpcId': gv_vpc['VpcId'],
+                'CidrBlock': gv_vpc['CidrBlock'],
+                'IsDefault': gv_vpc['IsDefault'],
+                'Name': None  # Default value if no name is found
             }
-            vpc_info.append(vpc_details)
-            print(vpc_details)  # Print for local use
-        return vpc_info
-    except Exception as e:
-        print(f"Error retrieving VPC info: {e}")  # Print error for local use
-        return None
 
-def get_vpc_name(client: boto3.client, filters: List[Dict[str, Any]] = []) -> Optional[List[str]]:
-    """
-    Retrieve the names of VPCs from AWS EC2 based on tags.
+            # Check for tags to find the Name
+            if 'Tags' in gv_vpc:
+                for gv_tag in gv_vpc['Tags']:
+                    if gv_tag['Key'] == 'Name':
+                        gv_vpc_details['Name'] = gv_tag['Value']
+                        break  # Exit loop once name is found
 
-    Args:
-        client (boto3.client): The EC2 client.
-        filters (List[Dict[str, Any]], optional): Filters to apply to the VPC query. Defaults to an empty list.
+            gv_vpc_info.append(gv_vpc_details)
+            print(gv_vpc_details)  # Print VPC details for local use
 
-    Returns:
-        Optional[List[str]]: A list of VPC names or None if an error occurs.
-    """
-    try:
-        response = client.describe_vpcs(Filters=filters)
-        vpc_names = []
-        for vpc in response['Vpcs']:
-            if 'Tags' in vpc:
-                for tag in vpc['Tags']:
-                    if tag['Key'] == 'Name':
-                        vpc_names.append(tag['Value'])
-                        print(tag['Value'])  # Print for local use
-        return vpc_names
-    except Exception as e:
-        print(f"Error retrieving VPC names: {e}")  # Print error for local use
-        return None
+        return gv_vpc_info  # Return the list of VPC information
 
+    except ClientError as e:
+        print(f"Error retrieving VPC info and names: {e}")  # Print error for local use
+        return None  # Return None to indicate an error occurred
 
+# Main execution block
 if __name__ == "__main__":
-    # Main body of the script
-    ec2 = boto3.client('ec2')
+    # No filters to get all VPCs
+    filters = []
 
-    filters = [{'Name': 'isDefault', 'Values': ['true']}]
+    # Get VPC information and names
+    vpc_info = get_vpc(ec2, filters)
 
-    # Get VPC information
-    vpc_info = get_vpc_info(ec2, filters)
-
-    # Get VPC names
-    vpc_names = get_vpc_name(ec2, filters)
+    # Check if VPC info was retrieved successfully
+    if vpc_info is None:
+        print("Failed to retrieve VPC information.")
