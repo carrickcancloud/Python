@@ -3,6 +3,9 @@ from botocore.exceptions import ClientError
 from typing import List, Dict, Any
 import fnmatch
 
+# Initialize the EC2 client
+ec2 = boto3.client('ec2')
+
 def describe_subnets(client: Any, ds_filter: str = None) -> List[Dict[str, Any]]:
     """
     Describe subnets in the specified VPC using the provided EC2 client.
@@ -70,9 +73,6 @@ def prompt_with_retries(pwr_prompt: str, pwr_max_retries: int = 3) -> str:
     return "no"  # Return 'no' if maximum retries reached
 
 if __name__ == "__main__":
-    # Main body of the script
-    ec2 = boto3.client('ec2')  # Create an EC2 client
-
     # Prompt for the filter value
     name_filter = prompt_with_retries("Enter the Name tag value to filter subnets (use '*' as wildcard): ")
 
