@@ -2,39 +2,54 @@ import boto3
 from botocore.exceptions import ClientError
 from typing import Optional, Dict, Any, List
 
-def describe_internet_gateways() -> Optional[List[Dict[str, Any]]]:
+# Initialize the EC2 client
+ec2 = boto3.client('ec2')
+
+def describe_internet_gateways(client: boto3.client) -> Optional[List[Dict[str, Any]]]:
     """
-    Describe Internet Gateways in the AWS EC2 service.
+    Describe and return Internet Gateways in the AWS EC2 service.
+
+    This function retrieves Internet Gateways and returns a list of dictionaries
+    containing their IDs and VPC attachments. If an error occurs, it returns None.
+
+    Args:
+        client (boto3.client): The EC2 client used to make requests to AWS.
 
     Returns:
-        Optional[List[Dict[str, Any]]]: A list of dictionaries containing
-        information about Internet Gateways, or None if an error occurs.
+        Optional[List[Dict[str, Any]]]: A list of Internet Gateways with their details,
+        or None if an error occurred or no Internet Gateways were found.
     """
-    ec2 = boto3.client('ec2')
-
     try:
-        response = ec2.describe_internet_gateways()
-        return response.get('InternetGateways', [])
+        # Retrieve Internet Gateways
+        dig_response = client.describe_internet_gateways()
+        dig_internet_gateways = dig_response.get('InternetGateways', [])
+
+        if not dig_internet_gateways:
+            print("No Internet Gateways found.")
+            return None
+
+        # Create a list to hold Internet Gateway details
+        internet_gateways_info = []
+
+        for dig_igw in dig_internet_gateways:
+            dig_igw_id = dig_igw['InternetGatewayId']
+            for dig_attachment in dig_igw['Attachments']:
+                dig_vpc_id = dig_attachment['VpcId']
+                dig_state = dig_attachment['State']
+                internet_gateways_info.append({
+                    'InternetGatewayId': dig_igw_id,
+                    'State': dig_state,
+                    'VpcId': dig_vpc_id
+                })
+                print(f"Internet Gateway ID: {dig_igw_id}, State: {dig_state}, VPC ID: {dig_vpc_id}")
+
+        return internet_gateways_info
+
     except ClientError as e:
         print(f"Error describing internet gateways: {e}")
         return None
 
-def print_internet_gateways(internet_gateways: List[Dict[str, Any]]) -> None:
-    """
-    Print the Internet Gateway IDs and their VPC attachments.
-
-    Args:
-        internet_gateways (List[Dict[str, Any]]): The list of Internet Gateways.
-    """
-    for igw in internet_gateways:
-        print(f"Internet Gateway ID: {igw['InternetGatewayId']}")
-        for attachment in igw['Attachments']:
-            print(f"VPC ID: {attachment['VpcId']}, State: {attachment['State']}")
-
 if __name__ == "__main__":
-    # Main body of the script
-    internet_gateways = describe_internet_gateways()
-    if internet_gateways is not None:
-        print_internet_gateways(internet_gateways)
-    else:
-        print("No Internet Gateways found or an error occurred.")
+    result = describe_internet_gateways(ec2)
+    if result is None:
+        print("Failed to retrieve Internet Gateways or none were found.")
