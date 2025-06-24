@@ -30,6 +30,14 @@ OS_DISTROS: List[str] = [
     'Amazon Linux'
 ]
 
+# List of Ubuntu flavors
+UBUNTU_FLAVORS: List[str] = [
+    '22.04',
+    '24.04',
+    '24.10',
+    '25.04'
+]
+
 def select_option(so_options: List[str], so_prompt: str) -> Optional[str]:
     """Prompt the user to select an option from a list.
 
@@ -79,11 +87,12 @@ def prompt_with_retries(pwr_prompt: str, pwr_max_retries: int = 3) -> Optional[s
     print("Maximum retries reached. Exiting.")
     return None  # Return None if maximum retries reached
 
-def get_latest_ubuntu_ami(glua_architecture: str) -> Optional[Dict[str, Any]]:
+def get_latest_ubuntu_ami(glua_architecture: str, glua_ubuntu_flavor: str) -> Optional[Dict[str, Any]]:
     """Fetch the latest Ubuntu AMI ID.
 
     Args:
         glua_architecture (str): The architecture to filter AMIs.
+        glua_ubuntu_flavor (str): The Ubuntu flavor to filter AMIs.
 
     Returns:
         Optional[Dict[str, Any]]: A dictionary containing the latest Ubuntu AMI details or None if not found.
@@ -92,16 +101,27 @@ def get_latest_ubuntu_ami(glua_architecture: str) -> Optional[Dict[str, Any]]:
         # Define filters for Ubuntu AMIs
         glua_filters = [
             {'Name': 'architecture', 'Values': [glua_architecture]},
-            {'Name': 'name', 'Values': ['*server*']}
+            {'Name': 'name', 'Values': ['*server*']},
+            {'Name': 'name', 'Values': [f'*{glua_ubuntu_flavor}*']}
         ]
 
         # Describe images based on filters and owner ID for Ubuntu
         glua_response = ec2.describe_images(Filters=glua_filters, Owners=['099720109477'])
 
-        # Find the latest AMI by creation date
+        # Find the latest AMI by creation date, excluding any with 'pro' in the name
         if glua_response['Images']:
-            glua_latest_ami = max(glua_response['Images'], key=lambda x: x['CreationDate'])
-            return glua_latest_ami
+            glua_filtered_images = [
+                glua_img
+                    for glua_img in glua_response['Images']
+                    if 'pro' not in glua_img['Name']  # Exclude 'pro' images
+                    if 'eks' not in glua_img['Name']  # Exclude EKS images
+            ]
+            if glua_filtered_images:
+                glua_latest_ami = max(glua_filtered_images, key=lambda x: x['CreationDate'])
+                return glua_latest_ami
+            else:
+                print("No images found after excluding 'pro' in the name.")
+                return None
         else:
             print("No images found for the specified filters.")
             return None
@@ -146,16 +166,17 @@ def get_latest_amazon_linux_amis(glala_architecture: str) -> Tuple[Optional[Dict
         print(f"ClientError: {e.response['Error']['Message']}")
         return None, None
 
-def list_latest_ami_details(llad_architecture: str, llad_os_distro: str) -> None:
+def list_latest_ami_details(llad_architecture: str, llad_os_distro: str, llad_ubuntu_flavor: str) -> None:
     """List the details of the latest AMIs based on the selected OS distribution.
 
     Args:
         llad_architecture (str): The architecture to filter AMIs.
         llad_os_distro (str): The selected OS distribution (Ubuntu or Amazon Linux).
+        ubuntu_flavor (str): The selected Ubuntu flavor.
     """
     if llad_os_distro == 'Ubuntu':
         # Fetch the latest Ubuntu AMI
-        llad_ubuntu_ami_info = get_latest_ubuntu_ami(llad_architecture)
+        llad_ubuntu_ami_info = get_latest_ubuntu_ami(llad_architecture, llad_ubuntu_flavor)
         if llad_ubuntu_ami_info:
             print("Latest Ubuntu Server AMI:")
             print(f"  AMI ID: {llad_ubuntu_ami_info['ImageId']}")
@@ -203,17 +224,19 @@ def list_latest_ami_details(llad_architecture: str, llad_os_distro: str) -> None
             print("No Amazon Linux 2023 AMIs found.")
 
 if __name__ == "__main__":
-    # Select region, architecture, and OS distro from user
+    # Select region
     region_name: Optional[str] = select_option(REGIONS, "Please select an AWS region:")
     if region_name is None:
         print("No region selected. Exiting.")
         exit()
 
+    # Select architecture
     architecture: Optional[str] = select_option(ARCHITECTURES, "Please select an architecture:")
     if architecture is None:
         print("No architecture selected. Exiting.")
         exit()
 
+    # Select OS distribution
     os_distro: Optional[str] = select_option(OS_DISTROS, "Please select an OS distro:")
     if os_distro is None:
         print("No OS distro selected. Exiting.")
@@ -222,5 +245,13 @@ if __name__ == "__main__":
     # Initialize the EC2 client with the user-specified region
     ec2 = boto3.client('ec2', region_name=region_name)
 
-    # Call the unified function with the selected architecture and OS distro
-    list_latest_ami_details(architecture, os_distro)
+    # If Ubuntu is selected, prompt for Ubuntu flavor
+    ubuntu_flavor: Optional[str] = None
+    if os_distro == 'Ubuntu':
+        ubuntu_flavor = select_option(UBUNTU_FLAVORS, "Please select Ubuntu flavor:")
+        if ubuntu_flavor is None:
+            print("No Ubuntu flavor selected. Exiting.")
+            exit()
+
+    # Call the function with the selected architecture and OS distro
+    list_latest_ami_details(architecture, os_distro, ubuntu_flavor)
